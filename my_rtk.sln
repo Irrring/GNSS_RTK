@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.35913.81 d17.13
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "my_rtk", "my_rtk.vcxproj", "{8C36FEAB-CC59-45D6-968E-E4F69CFAB336}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8C36FEAB-CC59-45D6-968E-E4F69CFAB336}.Debug|x64.ActiveCfg = Debug|x64
+		{8C36FEAB-CC59-45D6-968E-E4F69CFAB336}.Debug|x64.Build.0 = Debug|x64
+		{8C36FEAB-CC59-45D6-968E-E4F69CFAB336}.Debug|x86.ActiveCfg = Debug|Win32
+		{8C36FEAB-CC59-45D6-968E-E4F69CFAB336}.Debug|x86.Build.0 = Debug|Win32
+		{8C36FEAB-CC59-45D6-968E-E4F69CFAB336}.Release|x64.ActiveCfg = Release|x64
+		{8C36FEAB-CC59-45D6-968E-E4F69CFAB336}.Release|x64.Build.0 = Release|x64
+		{8C36FEAB-CC59-45D6-968E-E4F69CFAB336}.Release|x86.ActiveCfg = Release|Win32
+		{8C36FEAB-CC59-45D6-968E-E4F69CFAB336}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {76F16275-9897-471D-9E54-0252F66C5322}
+	EndGlobalSection
+EndGlobal

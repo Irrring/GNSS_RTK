@@ -1,0 +1,17 @@
+{
+    "Network": {
+      "IP": "47.114.134.129",
+      "PORT": 7190
+    },
+    "Visualization": {
+      "VISUAL_IP": "127.0.0.1",
+      "VISUAL_PORT": 9999
+    },
+    "Files": {
+      "SOURCE_FILE": "./Data/oem719-202404021900-1.bin",
+      "OUTPUT_FILE": "./solution/spp_result-UnWeight-15El.txt",
+      "RCVRES_FILE": "./solution/rcv_result.txt",
+      "MIXOUT_FILE": "./solution/mix_result.txt"
+    }
+}
+  
