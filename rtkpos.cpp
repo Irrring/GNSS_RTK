@@ -26,9 +26,9 @@ const char* SOURCE_FILE_01 = ".//Data//oem719-202202021500-base.bin";
 const char* SOURCE_FILE_02 = ".//Data//oem719-202202021500-rover.bin";
 
 
-const char* OUTPUT_FILE = "./solution/spp_result.txt";
-const char* RCVRES_FILE = "./solution/rcv_result.txt";
-const char* MIXOUT_FILE = "./solution/mix_result.txt";
+const char* OUTPUT_FILE = "./Solution/Rtk_result.txt";
+const char* RCVRES_FILE = "./Solution/rcv_result.txt";
+const char* MIXOUT_FILE = "./Solution/mix_result.txt";
 
 const double delta_pseudo = 0.3;
 const double delta_phase  = 0.01;
@@ -53,6 +53,16 @@ int GetSynObs(InputHandle& rover_src,InputHandle& base_src, RTK_RAW& raw)
 	// Status Record
 	double time_diff = 0.0;
 
+	double threshold = 1;
+
+	if (rover_src.type_ == InputType::FILE_INPUT)
+	{
+		threshold = 0.5;
+	}
+	else
+	{
+		threshold = 0.5;
+	}
 
 	// Loop to Extract the Next Obs of Rover
 	while (true)
@@ -65,9 +75,9 @@ int GetSynObs(InputHandle& rover_src,InputHandle& base_src, RTK_RAW& raw)
 			{
 				time_diff = GPST_DIFF(raw.RovEpk.Time, raw.BasEpk.Time);
 
-				if (fabs(time_diff) <= 0.5)
+				if (fabs(time_diff) <= threshold && rover_src.type_ == InputType::FILE_INPUT)
 					return 1;  // -----> Old Base_Obs Synchronous with Rover
-				else if (time_diff < -0.5)
+				else if (time_diff < -threshold)
 					return 0;  // -----> Old Base_Obs much more Later than Rover
 				else
 					break;	  //  -----> Old Base_Obs much more Early than Rover 
@@ -106,10 +116,10 @@ int GetSynObs(InputHandle& rover_src,InputHandle& base_src, RTK_RAW& raw)
 
 				time_diff = GPST_DIFF(raw.RovEpk.Time, raw.BasEpk.Time);
 
-				if (fabs(time_diff) <= 0.5)
+				if (fabs(time_diff) <= threshold)
 					return 1;  // ----->  New Base_Obs Synchronous with Rover
 
-				if (time_diff < -0.5)
+				if (time_diff < -threshold)
 					return 0;  // ----->  New Base_Obs much more Later than Rover
 
 				// Base_Obs much more Early than Rover ---> Loop and Extract Obs Again
@@ -318,7 +328,7 @@ void Check_SD_Obs(SD_EPOCH_OBS& sd_obs)
 	for (int i = 0; i < sd_obs.SatNum; i++)
 	{
 
-		// half_cycle haven added OR no dual-obs
+		// half_cycle haven't added OR no dual-obs
 		if (sd_obs.SdSatObs[i].Valid_status < 2)
 		{
 			// add necessary info 
@@ -364,7 +374,7 @@ void Check_SD_Obs(SD_EPOCH_OBS& sd_obs)
 		// Loop to find the Cooresponding Combine Observation in the Last Epoch
 		for (int j = 0; j < MAX_CHANNEL_NUM; j++)
 		{
-			if (sd_obs.SdCombObs[j].Prn != sd_obs.SdCombObs[i].Prn || sd_obs.SdCombObs[j].Sys != sd_obs.SdCombObs[i].Sys)
+			if (sd_obs.SdCombObs[j].Prn != sd_obs.SdSatObs[i].Prn || sd_obs.SdCombObs[j].Sys != sd_obs.SdSatObs[i].System)
 			{
 				continue;
 			}
@@ -391,6 +401,7 @@ void Check_SD_Obs(SD_EPOCH_OBS& sd_obs)
 			new_combine[i].PIF = (freq1 * freq1 * sd_obs.SdSatObs[i].dP[0] - freq2 * freq2 * sd_obs.SdSatObs[i].dP[1]) / (freq1 * freq1 - freq2 * freq2);
 			new_combine[i].valid_epo_num = 1;
 
+
 		} // check MW and GF difference with last epoch
 		else if (fabs(GF - GF_0) > 0.05 || fabs(MW - MW_bar) > 3)
 		{
@@ -398,6 +409,10 @@ void Check_SD_Obs(SD_EPOCH_OBS& sd_obs)
 			new_combine[i].GF = GF;
 			new_combine[i].MW = MW;
 			new_combine[i].valid_epo_num = 0;
+			
+
+			cout << "Cycle Slip Detected:  " << sd_obs.SdSatObs[i].System << " " << sd_obs.SdSatObs[i].Prn << endl;
+
 		}
 		else
 		{
@@ -407,6 +422,7 @@ void Check_SD_Obs(SD_EPOCH_OBS& sd_obs)
 			new_combine[i].MW = MW_bar;
 			new_combine[i].PIF = (freq1 * freq1 * sd_obs.SdSatObs[i].dP[0] - freq2 * freq2 * sd_obs.SdSatObs[i].dP[1]) / (freq1 * freq1 - freq2 * freq2);
 			new_combine[i].valid_epo_num = k_0 + 1;
+
 		}
 
 	}
@@ -562,7 +578,8 @@ bool RTK_Float(RTK_RAW& Raw, Eigen::VectorXd& FloatAmb, Eigen::MatrixXd& Qxx)
 
 
 	// Find the Index of Refernce Satellite in RawObs/SatPVT
-	int RefIdx_Rov_GPS, RefIdx_Bas_GPS, RefIdx_Rov_BDS, RefIdx_Bas_BDS = 0;
+	int RefIdx_Rov_GPS, RefIdx_Bas_GPS, RefIdx_Rov_BDS, RefIdx_Bas_BDS;
+	RefIdx_Rov_GPS = RefIdx_Bas_GPS = RefIdx_Rov_BDS = RefIdx_Bas_BDS = -1;
 	
 	if (Raw.DDObs.DDSatNum[0] > 0)
 	{
@@ -1102,7 +1119,7 @@ int RTK_FIX(RTK_RAW& Raw, Eigen::VectorXd& FloatAmb, Eigen::MatrixXd& Qxx)
 		return 0;
 	}
 
-
+	// cout << "Ratio = " << Raw.DDObs.Ratio << endl;
 
 
 	// Calculate Fix Solution for Baseline
@@ -1121,8 +1138,8 @@ int RTK_FIX(RTK_RAW& Raw, Eigen::VectorXd& FloatAmb, Eigen::MatrixXd& Qxx)
 	double Sigma_BL = sqrt(Q_BL_fix(0, 0) + Q_BL_fix(1, 1) + Q_BL_fix(2, 2));
 
 
-	cout << "Fixed Solution of BaseLine: "<<Raw.SdObs.Time.SecOfWeek<<"  " << BL_fix(0, 0) << "  " << BL_fix(1, 0) << "  " << BL_fix(2, 0) << endl;
-	//cout << "Fixed BaseLine Varicance  "<< Sigma_BL << endl;
+	// cout << "Fixed Solution of BaseLine: "<<Raw.SdObs.Time.SecOfWeek<<"  " << BL_fix(0, 0) << "  " << BL_fix(1, 0) << "  " << BL_fix(2, 0) << endl;
+	// cout << "Fixed BaseLine Varicance  "<< Sigma_BL << endl;
 
 
 	// Stroe Fixed Solution
@@ -1152,19 +1169,27 @@ int RTK_LS()
 	
 
 	// Create Input Handle
-	InputHandle base_src(SOURCE_FILE_1);
-	InputHandle rover_src(SOURCE_FILE_2);
+	//InputHandle base_src(SOURCE_FILE_1);
+	//InputHandle rover_src(SOURCE_FILE_2);
+
+	InputHandle base_src("47.114.134.129", 7190);
+	InputHandle rover_src("8.148.22.229", 4002);
+
+	// Create Output FileStream
+	ofstream output_file(OUTPUT_FILE);
 
 
 	XYZ_Coord Bas_pos(0, 0, 0);
 	XYZ_Coord Rov_pos(0, 0, 0);
+	int all_count = 0;
+	int fix_count = 0;
 
 	// Loop to Fetch Data
 	while (true)
 	{
 		// Synchronous Status
+		//Sleep(980);
 		int syn_status = GetSynObs(rover_src, base_src, Raw);
-
 
 		// For Differnt Status
 		if (syn_status == -1)
@@ -1182,8 +1207,6 @@ int RTK_LS()
 		
 		/* -------- Syn_states == 1 ---> Start RTK Progress -------- */
 		
-		
-
 		Check_Raw_Obs(Raw.BasEpk, Raw.RovEpk);
 
 		if(!SPP(Raw.BasEpk, Raw.GpsEph, Raw.BdsEph, Bas_pos))
@@ -1197,6 +1220,8 @@ int RTK_LS()
 			cout << "Not Enough Observation For Rover!" << endl;
 			continue;
 		}
+
+		all_count++;
 
 		Construct_SD_Obs(Raw.BasEpk, Raw.RovEpk, Raw.SdObs);
 		Check_SD_Obs(Raw.SdObs);
@@ -1224,29 +1249,1125 @@ int RTK_LS()
 		}
 
 
+		//cout << "Float Solution of BaseLine: " << Raw.SdObs.Time.SecOfWeek << "  " << Raw.DDObs.dPos.x << "  " << Raw.DDObs.dPos.y << "  " << Raw.DDObs.dPos.z << endl;
+
+
 		if (!RTK_FIX(Raw, FloatAmb, Qxx))
 		{
 			cout << "Failed to Fix Ambiguity!" << endl;
 			continue;
 		}
 
+		cout << "Fixed Solution of BaseLine: " << Raw.SdObs.Time.SecOfWeek << "  " << Raw.DDObs.dPos.x << "  " << Raw.DDObs.dPos.y << "  " << Raw.DDObs.dPos.z << "  " << Raw.DDObs.ref_prn[0] << "  " << Raw.DDObs.ref_prn[1] << endl;
 
+		// Update Position
+		Raw.RovEpk.my_result.Pos.x = Raw.DDObs.dPos.x + Raw.BasEpk.rcv_result.Pos.x;
+		Raw.RovEpk.my_result.Pos.y = Raw.DDObs.dPos.y + Raw.BasEpk.rcv_result.Pos.y;
+		Raw.RovEpk.my_result.Pos.z = Raw.DDObs.dPos.z + Raw.BasEpk.rcv_result.Pos.z;
+
+		BLH_Coord Rover_blh;
+		XYZ2BLH(Raw.RovEpk.my_result.Pos, Rover_blh, WGS84);
+
+		fix_count++;
+
+		// cout << "Fixed Solution of Rover   : " << Raw.RovEpk.my_result.Pos.x << "  " << Raw.RovEpk.my_result.Pos.y << "  " << Raw.RovEpk.my_result.Pos.z << endl;
+		// cout << "Fixed Solution of BaseLine: " << Raw.SdObs.Time.SecOfWeek << "  " << Raw.DDObs.dPos.x << "  " << Raw.DDObs.dPos.y << "  " << Raw.DDObs.dPos.z << endl;
+
+		string fix_result;
+		char fix_buffer[256];
+		sprintf(fix_buffer, "%6d %13.3f %30.25f %30.25f %15.7f %2d\n",
+			Raw.RovEpk.Time.Week, Raw.RovEpk.Time.SecOfWeek,
+			Rover_blh.B, Rover_blh.L, Rover_blh.H, Raw.DDObs.bFixed);
+
+		fix_result = fix_buffer;
+
+		output_file << fix_result;
+		
+		cout << "Fix Ratio: " << (double)fix_count / all_count * 100 << "%" << endl;
+	}
+	
+	cout << "All Count: " << all_count << endl;
+	cout << "Fix Count: " << fix_count << endl;
+	cout << "Fix Ratio: " << (double)fix_count / all_count * 100 << "%" << endl;
+
+	return 1;
+  
+}
+
+
+
+void RTK_EKF_INIT(RTK_RAW& raw, RTK_EKF& kf)
+{
+	/* ------- Initialize the State--Position ---------- */ 
+	kf.Pos.x = raw.RovEpk.my_result.Pos.x;
+	kf.Pos.y = raw.RovEpk.my_result.Pos.y;
+	kf.Pos.z = raw.RovEpk.my_result.Pos.z;
+
+	/* ------- Initialize the State--Ambiguity ---------- */ 
+	int gps_amb_count = 0;
+	int bds_amb_count = raw.DDObs.DDSatNum[0];
+
+	// For Loop to Init Amb -- j as not RefSat
+	for (int j = 0; j < raw.SdObs.SatNum; j++)
+	{
+		// Does not Estimate Ambiguity
+		if (raw.SdObs.SdSatObs[j].Valid_status != 2)
+		{
+			continue;
+		}
+
+		// Check if is Ref Satellite
+		if (raw.DDObs.ref_idx[0] == j || raw.DDObs.ref_idx[1] == j)
+		{
+			continue;
+		}
+
+
+		// For GPS
+		if (raw.SdObs.SdSatObs[j].System == GPS)
+		{
+			Amb_Info amb_info;
+			amb_info.index = gps_amb_count;  // To Find the Corresponding Sit in Matrix P
+			amb_info.value[0] = raw.DDObs.FixedAmb[2 * gps_amb_count];
+			amb_info.value[1] = raw.DDObs.FixedAmb[2 * gps_amb_count + 1];
+
+			// Add Amb Info into the Map:  Prn <--> Value & Index
+			kf.GPS_Amb[raw.SdObs.SdSatObs[j].Prn] = amb_info;
+
+			gps_amb_count++;
+		}
+		// For BDS
+		else if (raw.SdObs.SdSatObs[j].System == BDS)
+		{
+			Amb_Info amb_info;
+			amb_info.index = bds_amb_count; // To Find the Corresponding Sit in Matrix P
+			amb_info.value[0] = raw.DDObs.FixedAmb[2 * bds_amb_count];
+			amb_info.value[1] = raw.DDObs.FixedAmb[2 * bds_amb_count + 1];
+
+			// Add Amb Info into the Map:  Prn <--> Value & Index
+			kf.BDS_Amb[raw.SdObs.SdSatObs[j].Prn] = amb_info;
+
+			bds_amb_count++;
+		}
+	}
+
+
+	/* ------- Initialize the State Covariance ---------- */
+	kf.P.resize(3 + 2 * raw.DDObs.Sats, 3 + 2 * raw.DDObs.Sats);
+	kf.P.setZero();
+	
+	// Position Covariance -- fixed
+	kf.P.block(0, 0, 3, 3) = Eigen::MatrixXd::Identity(3, 3) * 1e-3;
+
+	// Ambiguity Covariance -- fixed
+	kf.P.block(3, 3, 2 * raw.DDObs.Sats, 2 * raw.DDObs.Sats) = Eigen::MatrixXd::Identity(2 * raw.DDObs.Sats, 2 * raw.DDObs.Sats) * 900;
+
+
+	/* ------ Store "Last" Epoch Info ------ */
+	kf.Last_DDObs = raw.DDObs;
+	kf.isInit = true;
+}
+
+
+
+
+void check_RefChange(RTK_RAW& raw, RTK_EKF& kf, int* d_ref)
+{
+	// For GPS Ref
+	if (raw.DDObs.ref_prn[0] == kf.Last_DDObs.ref_prn[0])
+	{
+		d_ref[0] = -1;		// Reference Satellite is not Changed
+	}
+	else
+	{
+		// Reference Satellite is Changed, Find the Corresponding Index in the Last Ambiguity Sqeuence
+		Amb_Map::const_iterator gps_ref = kf.GPS_Amb.find(raw.DDObs.ref_prn[0]);
+
+		// Check if the Reference Satellite is in the Map
+		if (gps_ref == kf.GPS_Amb.end())
+		{
+			cout << "GPS Reference Satellite is not in the Map!" << endl;
+			d_ref[0] = -2;
+		}
+		else
+		{
+			// Set New Index of Ref Satellite in Last Ambiguity Sqeuence
+			d_ref[0] = gps_ref->second.index;
+		}
 
 
 	}
-	
-	return 1;
-   
 
-   
+	// For BDS Ref
+	if (raw.DDObs.ref_prn[1] == kf.Last_DDObs.ref_prn[1])
+	{
+		d_ref[1] = -1;		// Reference Satellite is not Changed
+	}
+	else
+	{
+		// Reference Satellite is Changed, Find the Corresponding Index in the Last Ambiguity Sqeuence
+		Amb_Map::const_iterator bds_ref = kf.BDS_Amb.find(raw.DDObs.ref_prn[1]);
+		// Check if the Reference Satellite is in the Map
+		if (bds_ref == kf.BDS_Amb.end())
+		{
+			cout << "BDS Reference Satellite is not in the Map!" << endl;
+			d_ref[1] = -2;
+		}
+		else
+		{
+			// Set New Index of Ref Satellite in Last Ambiguity Sqeuence
+			d_ref[1] = bds_ref->second.index;
+		}
+
+	}
+
 }
+
+
+
+/* Process Ambiguity State for EKF --------------------------------------
+* args   :
+*          RTK_RAW&            Raw           I    raw observation data
+*          RTK_EKF&            EKF           IO   EKF state and parameters
+*          int*                d_ref         I    reference satellite change flags
+*          Eigen::MatrixXd&    X             O    state vector
+*          Eigen::MatrixXd&    Phi_Amb       O    state transition matrix for ambiguities
+*          Eigen::MatrixXd&    Q             O    process noise matrix
+*
+* return : void
+*
+* note   : d_ref[0/1]: -2 for Not Found, -1 for Not Changed, >=0 for the corresponding
+*          index in the last ambiguity sequence
+*-----------------------------------------------------------------------------*/
+void ProcessAmbiguityState(RTK_RAW& Raw, RTK_EKF& EKF, int* d_ref,
+	Eigen::MatrixXd& X, Eigen::MatrixXd& Phi_Amb,
+	Eigen::MatrixXd& Q)
+{
+	// Temporary Matrix for consider GPS/BDS Separately
+	int GPS_idx = 0;
+	int BDS_idx = 2 * Raw.DDObs.DDSatNum[0];
+
+	// Initialize Phi_Amb (if not done by caller)
+	if (Phi_Amb.rows() != 2 * Raw.DDObs.Sats || Phi_Amb.cols() != 2 * EKF.Last_DDObs.Sats) {
+		Phi_Amb = Eigen::MatrixXd::Zero(2 * Raw.DDObs.Sats, 2 * EKF.Last_DDObs.Sats);
+	}
+
+	// Loop through all satellites in SD observations
+	for (int j = 0; j < Raw.SdObs.SatNum; j++)
+	{
+		// Skip satellites with cycle slips or invalid observations
+		if (Raw.SdObs.SdSatObs[j].Valid_status != 2) {
+			continue;
+		}
+
+		// Skip reference satellites
+		if (Raw.DDObs.ref_idx[0] == j || Raw.DDObs.ref_idx[1] == j) {
+			continue;
+		}
+
+		// Process GPS satellites
+		if (Raw.SdObs.SdSatObs[j].System == GPS)
+		{
+			// Find the corresponding ambiguity in the previous epoch
+			Amb_Map::const_iterator last_gps = EKF.GPS_Amb.find(Raw.SdObs.SdSatObs[j].Prn);
+
+			// Satellite found in previous epoch and valid reference
+			if (last_gps != EKF.GPS_Amb.end() && d_ref[0] >= -1)
+			{
+				// Fill state transition matrix
+				if (d_ref[0] == -1) {
+					// Reference satellite unchanged
+					Phi_Amb(GPS_idx, 2 * last_gps->second.index) = 1.0;
+					Phi_Amb(GPS_idx + 1, 2 * last_gps->second.index + 1) = 1.0;
+
+					// Initialize state vector with previous values
+					X(3 + GPS_idx, 0) = last_gps->second.value[0];
+					X(3 + GPS_idx + 1, 0) = last_gps->second.value[1];
+				}
+				else {
+					// Reference satellite changed
+					Phi_Amb(GPS_idx, 2 * d_ref[0]) = -1.0;
+					Phi_Amb(GPS_idx, 2 * last_gps->second.index) = 1.0;
+
+					Phi_Amb(GPS_idx + 1, 2 * d_ref[0] + 1) = -1.0;
+					Phi_Amb(GPS_idx + 1, 2 * last_gps->second.index + 1) = 1.0;
+
+
+					// Initialize state vector with previous values
+					X(3 + GPS_idx, 0) = last_gps->second.value[0] - EKF.GPS_Amb[Raw.DDObs.ref_prn[0]].value[0];
+					X(3 + GPS_idx + 1, 0) = last_gps->second.value[1] - EKF.GPS_Amb[Raw.DDObs.ref_prn[0]].value[1];
+				}
+
+				// Set low process noise for existing ambiguities
+				if (EKF.Last_DDObs.bFixed)
+				{
+					Q(3 + GPS_idx, 3 + GPS_idx) = 1e-8;
+					Q(3 + GPS_idx + 1, 3 + GPS_idx + 1) = 1e-8;
+				}
+				else
+				{
+					Q(3 + GPS_idx, 3 + GPS_idx) = 3;
+					Q(3 + GPS_idx + 1, 3 + GPS_idx + 1) = 3;
+				}
+
+				
+
+				// Mark ambiguity as used in this epoch
+				EKF.GPS_Amb[Raw.SdObs.SdSatObs[j].Prn].isUsed = true;
+			}
+			else
+			{
+				// New satellite or invalid reference - leave Phi_Amb at zero
+
+
+				// Initialize ambiguity from code-carrier difference
+				double lambda1 = CLIGHT / FREQ_GPS_L1;
+				double lambda2 = CLIGHT / FREQ_GPS_L2;
+
+				double L_f1 = Raw.SdObs.SdSatObs[j].dL[0] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[0]].dL[0];
+				L_f1 *= lambda1;   // Carrier phase in meters
+				double L_f2 = Raw.SdObs.SdSatObs[j].dL[1] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[0]].dL[1];
+				L_f2 *= lambda2;   // Carrier phase in meters
+
+				double P_f1 = Raw.SdObs.SdSatObs[j].dP[0] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[0]].dP[0];
+				double P_f2 = Raw.SdObs.SdSatObs[j].dP[1] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[0]].dP[1];
+				
+				// Set initial ambiguity values ---> Double Difference Ambiguity
+				X(3 + GPS_idx, 0) = (L_f1 - P_f1) / lambda1;
+				X(3 + GPS_idx + 1, 0) = (L_f2 - P_f2) / lambda2;
+
+				// Set high process noise to reinitialize ambiguity
+				Q(3 + GPS_idx, 3 + GPS_idx) = 36.0 / (lambda1 * lambda1);
+				Q(3 + GPS_idx + 1, 3 + GPS_idx + 1) = 36.0 / (lambda2 * lambda2);
+
+			}
+
+			// Move to next GPS ambiguity position
+			GPS_idx += 2;
+		}
+		// Process BDS satellites
+		else if (Raw.SdObs.SdSatObs[j].System == BDS)
+		{
+			// Find the corresponding ambiguity in the previous epoch
+			Amb_Map::const_iterator last_bds = EKF.BDS_Amb.find(Raw.SdObs.SdSatObs[j].Prn);
+
+			// Satellite found in previous epoch and valid reference
+			if (last_bds != EKF.BDS_Amb.end() && d_ref[1] >= -1)
+			{
+				// Fill state transition matrix
+				if (d_ref[1] == -1) {
+					// Reference satellite unchanged
+					Phi_Amb(BDS_idx, 2 * last_bds->second.index) = 1.0;
+					Phi_Amb(BDS_idx + 1, 2 * last_bds->second.index + 1) = 1.0;
+
+
+					// Initialize state vector with previous values
+					X(3 + BDS_idx, 0) = last_bds->second.value[0];
+					X(3 + BDS_idx + 1, 0) = last_bds->second.value[1];
+				}
+				else {
+					// Reference satellite changed
+					Phi_Amb(BDS_idx, 2 * d_ref[1]) = -1.0;
+					Phi_Amb(BDS_idx, 2 * last_bds->second.index) = 1.0;
+
+					Phi_Amb(BDS_idx + 1, 2 * d_ref[1] + 1) = -1.0;
+					Phi_Amb(BDS_idx + 1, 2 * last_bds->second.index + 1) = 1.0;
+
+					// Initialize state vector with previous values
+					X(3 + BDS_idx, 0) = last_bds->second.value[0] - EKF.BDS_Amb[Raw.DDObs.ref_prn[1]].value[0];
+					X(3 + BDS_idx + 1, 0) = last_bds->second.value[1] - EKF.BDS_Amb[Raw.DDObs.ref_prn[1]].value[1];
+				}
+
+				// Set low process noise for existing ambiguities
+				if (EKF.Last_DDObs.bFixed)
+				{
+					Q(3 + BDS_idx, 3 + BDS_idx) = 1e-8;
+					Q(3 + BDS_idx + 1, 3 + BDS_idx + 1) = 1e-8;
+				}
+				else
+				{
+					Q(3 + BDS_idx, 3 + BDS_idx) = 3;
+					Q(3 + BDS_idx + 1, 3 + BDS_idx + 1) = 3;
+				}
+
+
+			
+			}
+			else
+			{
+				// New satellite or invalid reference - leave Phi_Amb at zero
+				
+				// Initialize ambiguity from code-carrier difference
+				double lambda1 = CLIGHT / FREQ_BDS_B1;
+				double lambda2 = CLIGHT / FREQ_BDS_B3;
+
+				double L_f1 = Raw.SdObs.SdSatObs[j].dL[0] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[1]].dL[0];
+				L_f1 *= lambda1;   // Carrier phase in meters
+				double L_f2 = Raw.SdObs.SdSatObs[j].dL[1] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[1]].dL[1];
+				L_f2 *= lambda2;   // Carrier phase in meters
+
+				double P_f1 = Raw.SdObs.SdSatObs[j].dP[0] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[1]].dP[0];
+				double P_f2 = Raw.SdObs.SdSatObs[j].dP[1] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[1]].dP[1];
+
+				// Set initial ambiguity values
+				X(3 + BDS_idx, 0) = (L_f1 - P_f1) / lambda1;
+				X(3 + BDS_idx + 1, 0) = (L_f2 - P_f2) / lambda2;
+
+				// Set high process noise to reinitialize ambiguity
+				Q(3 + BDS_idx, 3 + BDS_idx) = 36.0 / (lambda1 * lambda1);
+				Q(3 + BDS_idx + 1, 3 + BDS_idx + 1) = 36.0 / (lambda2 * lambda2);
+			}
+
+			// Move to next BDS ambiguity position
+			BDS_idx += 2;
+		}
+	}
+}
+
+
+
+/* Time Update for Extended Kalman Filter ------------------------------------
+* args   :
+*          RTK_RAW&         Raw        I    raw observation data
+*          RTK_EKF&         EKF        IO   Kalman filter state and covariance
+*          Eigen::MatrixXd& X_k_k_1    O    predicted state vector
+*          Eigen::MatrixXd& P_k_k_1    O    predicted state covariance matrix
+*
+* return : int  1 ---> Time Update Successful
+*              0 ---> Failed to Update (reference satellite problem)
+*
+* note   : Performs the time update step of the Extended Kalman Filter
+*          by handling reference satellite changes and predicting the state
+*          vector and covariance matrix forward in time
+*-----------------------------------------------------------------------------*/
+int TimeEstimate(RTK_RAW& Raw, RTK_EKF& EKF,
+	Eigen::MatrixXd& X_k_k_1, Eigen::MatrixXd& P_k_k_1)
+{
+	// Initialize state and transition matrices
+	X_k_k_1 = Eigen::MatrixXd::Zero(3 + 2 * Raw.DDObs.Sats, 1);
+	Eigen::MatrixXd Phi = Eigen::MatrixXd::Zero(3 + 2 * Raw.DDObs.Sats, 3 + 2 * EKF.Last_DDObs.Sats);
+	Eigen::MatrixXd Q = Eigen::MatrixXd::Zero(3 + 2 * Raw.DDObs.Sats, 3 + 2 * Raw.DDObs.Sats);
+
+	// Check if the Reference Satellite has changed
+	// d_ref[0/1]: -2 for Not Found, -1 for Not Changed, >=0 for the corresponding index in the last ambiguity sequence
+	int d_ref[2] = { -1, -1 };
+	check_RefChange(Raw, EKF, d_ref);
+
+	// Position state transition (identity matrix for position components)
+	Phi.block(0, 0, 3, 3) = Eigen::MatrixXd::Identity(3, 3);
+
+	// Handle different motion models
+	if (EKF.state == 0)
+	{
+		// Kinematic model: use SPP to initialize position
+		X_k_k_1(0, 0) = Raw.RovEpk.my_result.Pos.x;
+		X_k_k_1(1, 0) = Raw.RovEpk.my_result.Pos.y;
+		X_k_k_1(2, 0) = Raw.RovEpk.my_result.Pos.z;
+
+		// Higher process noise for kinematic model
+		Q.block(0, 0, 3, 3) = Eigen::MatrixXd::Identity(3, 3) * 100.0;
+	}
+	else if (EKF.state == 1 && EKF.Last_DDObs.bFixed == true)
+	{
+		// Static model: use previous EKF solution
+		X_k_k_1(0, 0) = EKF.Pos.x;
+		X_k_k_1(1, 0) = EKF.Pos.y;
+		X_k_k_1(2, 0) = EKF.Pos.z;
+
+		// Lower process noise for static model
+		Q.block(0, 0, 3, 3) = Eigen::MatrixXd::Identity(3, 3) * 0.01;
+	}
+	else
+	{
+		// Unsupported motion model
+		std::cout << "EKF State is not Correct!" << std::endl;
+		return 0;
+	}
+
+	// Initialize ambiguity state transition matrix
+	Eigen::MatrixXd Phi_Amb = Eigen::MatrixXd::Zero(2 * Raw.DDObs.Sats, 2 * EKF.Last_DDObs.Sats);
+
+	// Process ambiguity states, handling satellite changes and initializing new ambiguities
+	ProcessAmbiguityState(Raw, EKF, d_ref, X_k_k_1, Phi_Amb, Q);
+
+	// Add ambiguity state transition to the full transition matrix
+	Phi.block(3, 3, 2 * Raw.DDObs.Sats, 2 * EKF.Last_DDObs.Sats) = Phi_Amb;
+
+	// Perform time update calculation using state transition equation:
+	// P_k_k-1 = Phi * P_k-1_k-1 * Phi^T + Q
+	P_k_k_1 = Phi * EKF.P * Phi.transpose() + Q;
+
+
+	// Debugging: Print all matrices
+	//std::cout << "X_k_k_1 (Predicted State Vector): \n" << X_k_k_1 << std::endl;
+	//std::cout << "Phi (State Transition Matrix): \n" << Phi << std::endl;
+	//cout << "EKF.P = \n" << EKF.P << endl;
+	//std::cout << "Q (Process Noise Matrix): \n" << Q << std::endl;
+	//std::cout << "P_k_k_1 (Predicted State Covariance Matrix): \n" << P_k_k_1 << std::endl;
+
+
+	return 1;
+}
+
+
+
+
+
+/* Measurement Update for Extended Kalman Filter ------------------------------
+* args   :
+*          RTK_RAW&         Raw        I    raw observation data
+*          Eigen::MatrixXd& X_k_k_1    I    predicted state vector
+*          Eigen::MatrixXd& P_k_k_1    I    predicted state covariance matrix
+*          Eigen::MatrixXd& X_k_k      O    updated state vector
+*          Eigen::MatrixXd& P_k_k      O    updated state covariance matrix
+*
+* return : int  1 ---> Measurement Update Successful
+*              0 ---> Failed to Update (not enough observations)
+*
+* note   : Performs the measurement update step of the Extended Kalman Filter
+*          for RTK positioning using double difference observations
+*-----------------------------------------------------------------------------*/
+int MeasurementUpdate(RTK_RAW& Raw, const Eigen::MatrixXd& X_k_k_1, 
+	const Eigen::MatrixXd& P_k_k_1,Eigen::MatrixXd& X_k_k, Eigen::MatrixXd& P_k_k)
+{
+	// Get rover position from state vector
+	XYZ_Coord rover_pos(X_k_k_1(0, 0), X_k_k_1(1, 0), X_k_k_1(2, 0));
+	XYZ_Coord base_pos(Raw.BasEpk.rcv_result.Pos);
+
+	// Get Initial Position of BASE from Reference Position
+	if (Raw.BasEpk.rcv_result.Pos.x == 0.0)
+	{
+		// Get Initial Position of BASE from SPP
+		std::cout << "No Base Position Reference Solution!" << std::endl;
+		base_pos = Raw.BasEpk.my_result.Pos;
+	}
+
+
+	// Calculate base station to satellites distances
+	double rou_B0[MAX_CHANNEL_NUM]{};
+	for (int i = 0; i < Raw.BasEpk.SatNum; i++)
+	{
+		rou_B0[i] = Calc_XYZ_dist(Raw.BasEpk.SatPVT[i].SatPos, base_pos);
+	}
+
+	// Find reference satellite indices
+	int RefIdx_Rov_GPS = 0, RefIdx_Bas_GPS = 0, RefIdx_Rov_BDS = 0, RefIdx_Bas_BDS = 0;
+
+	if (Raw.DDObs.DDSatNum[0] > 0)
+	{
+		RefIdx_Rov_GPS = Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[0]].Rov_idx;
+		RefIdx_Bas_GPS = Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[0]].Bas_idx;
+	}
+
+	if (Raw.DDObs.DDSatNum[1] > 0)
+	{
+		RefIdx_Rov_BDS = Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[1]].Rov_idx;
+		RefIdx_Bas_BDS = Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[1]].Bas_idx;
+	}
+
+	// Calculate rover to satellites distances
+	double rou_R0[MAX_CHANNEL_NUM]{};
+	for (int i = 0; i < Raw.RovEpk.SatNum; i++)
+	{
+		rou_R0[i] = Calc_XYZ_dist(Raw.RovEpk.SatPVT[i].SatPos, rover_pos);
+	}
+
+	// Construct observation matrices H and measurement noise matrix R
+	int obs_count = 4 * Raw.DDObs.Sats; // Each satellite has 4 observations (P1,P2,L1,L2)
+
+	// Check if enough observations are available
+	if (obs_count == 0)
+	{
+		return 0; // Not enough observations
+	}
+
+	Eigen::MatrixXd H = Eigen::MatrixXd::Zero(obs_count, 3 + 2 * Raw.DDObs.Sats);
+	Eigen::MatrixXd R = Eigen::MatrixXd::Zero(obs_count, obs_count);
+	Eigen::MatrixXd Z = Eigen::MatrixXd::Zero(obs_count, 1);      // Actual measurements
+	Eigen::MatrixXd Z_pred = Eigen::MatrixXd::Zero(obs_count, 1); // Predicted measurements
+	Eigen::MatrixXd V = Eigen::MatrixXd::Zero(obs_count, 1);      // Innovation (measurement residual)
+
+	// Calculate weights for pseudorange and carrier phase measurements
+	double R_GPS_ii_P = 2.0 * delta_pseudo * delta_pseudo * (Raw.DDObs.DDSatNum[0]);
+	double R_GPS_ij_P = 2.0 * delta_pseudo * delta_pseudo;
+	double R_BDS_ii_P = 2.0 * delta_pseudo * delta_pseudo * (Raw.DDObs.DDSatNum[1]);
+	double R_BDS_ij_P = 2.0 * delta_pseudo * delta_pseudo;
+
+	double R_GPS_ii_L = 2.0 * delta_phase * delta_phase * (Raw.DDObs.DDSatNum[0]);
+	double R_GPS_ij_L = 2.0 * delta_phase * delta_phase;
+	double R_BDS_ii_L = 2.0 * delta_phase * delta_phase * (Raw.DDObs.DDSatNum[1]);
+	double R_BDS_ij_L = 2.0 * delta_phase * delta_phase;
+
+	// Indices for matrix filling
+	int GPS_idx = 0;
+	int BDS_idx = 4 * Raw.DDObs.DDSatNum[0];
+
+	// Loop through all single-difference observations
+	for (int j = 0; j < Raw.SdObs.SatNum; j++)
+	{
+		// Skip reference satellites
+		if (Raw.DDObs.ref_idx[0] == j || Raw.DDObs.ref_idx[1] == j)
+		{
+			continue;
+		}
+
+		// Skip invalid observations
+		if (Raw.SdObs.SdSatObs[j].Valid_status != 2)
+		{
+			continue;
+		}
+
+		// Process GPS satellites
+		if (Raw.SdObs.SdSatObs[j].System == GPS)
+		{
+			// Set frequency and wavelength
+			double freq1 = FREQ_GPS_L1;
+			double lambda1 = CLIGHT / FREQ_GPS_L1;
+			double freq2 = FREQ_GPS_L2;
+			double lambda2 = CLIGHT / FREQ_GPS_L2;
+
+			// Calculate double difference geometric distances
+			double rou_R0_i = rou_R0[RefIdx_Rov_GPS];
+			double rou_R0_j = rou_R0[Raw.SdObs.SdSatObs[j].Rov_idx];
+			double rou_BR_i = rou_R0_i - rou_B0[RefIdx_Bas_GPS];
+			double rou_BR_j = rou_R0_j - rou_B0[Raw.SdObs.SdSatObs[j].Bas_idx];
+			double rou_BR_ij = rou_BR_j - rou_BR_i;
+
+			// Construct double difference observations
+			double P_f1 = Raw.SdObs.SdSatObs[j].dP[0] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[0]].dP[0];
+			double P_f2 = Raw.SdObs.SdSatObs[j].dP[1] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[0]].dP[1];
+			double L_f1 = Raw.SdObs.SdSatObs[j].dL[0] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[0]].dL[0];
+			L_f1 *= lambda1;   // Convert carrier phase to meters
+			double L_f2 = Raw.SdObs.SdSatObs[j].dL[1] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[0]].dL[1];
+			L_f2 *= lambda2;   // Convert carrier phase to meters
+
+			// Current ambiguity index
+			int amb_idx = GPS_idx / 4;
+
+			// Fill Jacobian matrix H with partial derivatives
+			for (int i = 0; i < 4; i++)
+			{
+				// Position partial derivatives
+				H(GPS_idx + i, 0) = (rover_pos.x - Raw.RovEpk.SatPVT[Raw.SdObs.SdSatObs[j].Rov_idx].SatPos.x) / rou_R0_j
+					- (rover_pos.x - Raw.RovEpk.SatPVT[RefIdx_Rov_GPS].SatPos.x) / rou_R0_i;
+
+				H(GPS_idx + i, 1) = (rover_pos.y - Raw.RovEpk.SatPVT[Raw.SdObs.SdSatObs[j].Rov_idx].SatPos.y) / rou_R0_j
+					- (rover_pos.y - Raw.RovEpk.SatPVT[RefIdx_Rov_GPS].SatPos.y) / rou_R0_i;
+
+				H(GPS_idx + i, 2) = (rover_pos.z - Raw.RovEpk.SatPVT[Raw.SdObs.SdSatObs[j].Rov_idx].SatPos.z) / rou_R0_j
+					- (rover_pos.z - Raw.RovEpk.SatPVT[RefIdx_Rov_GPS].SatPos.z) / rou_R0_i;
+			}
+
+			// Ambiguity partial derivatives
+			H(GPS_idx + 2, 3 + 2 * amb_idx) = lambda1;      // L1 ambiguity
+			H(GPS_idx + 3, 3 + 2 * amb_idx + 1) = lambda2;  // L2 ambiguity
+
+			// Fill measurement vector Z
+			Z(GPS_idx, 0) = P_f1;
+			Z(GPS_idx + 1, 0) = P_f2;
+			Z(GPS_idx + 2, 0) = L_f1;
+			Z(GPS_idx + 3, 0) = L_f2;
+
+			// Fill predicted measurement vector Z_pred
+			Z_pred(GPS_idx, 0) = rou_BR_ij;
+			Z_pred(GPS_idx + 1, 0) = rou_BR_ij;
+			Z_pred(GPS_idx + 2, 0) = rou_BR_ij + lambda1 * X_k_k_1(3 + 2 * amb_idx, 0);
+			Z_pred(GPS_idx + 3, 0) = rou_BR_ij + lambda2 * X_k_k_1(3 + 2 * amb_idx + 1, 0);
+
+			// Move to next GPS observation index
+			GPS_idx += 4;
+		}
+		// Process BDS satellites
+		else if (Raw.SdObs.SdSatObs[j].System == BDS)
+		{
+			// Set frequency and wavelength
+			double freq1 = FREQ_BDS_B1;
+			double lambda1 = CLIGHT / FREQ_BDS_B1;
+			double freq2 = FREQ_BDS_B3;
+			double lambda2 = CLIGHT / FREQ_BDS_B3;
+
+			// Calculate double difference geometric distances
+			double rou_R0_i = rou_R0[RefIdx_Rov_BDS];
+			double rou_R0_j = rou_R0[Raw.SdObs.SdSatObs[j].Rov_idx];
+			double rou_BR_i = rou_R0_i - rou_B0[RefIdx_Bas_BDS];
+			double rou_BR_j = rou_R0_j - rou_B0[Raw.SdObs.SdSatObs[j].Bas_idx];
+			double rou_BR_ij = rou_BR_j - rou_BR_i;
+
+			// Construct double difference observations
+			double P_f1 = Raw.SdObs.SdSatObs[j].dP[0] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[1]].dP[0];
+			double P_f2 = Raw.SdObs.SdSatObs[j].dP[1] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[1]].dP[1];
+			double L_f1 = Raw.SdObs.SdSatObs[j].dL[0] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[1]].dL[0];
+			L_f1 *= lambda1;   // Convert carrier phase to meters
+			double L_f2 = Raw.SdObs.SdSatObs[j].dL[1] - Raw.SdObs.SdSatObs[Raw.DDObs.ref_idx[1]].dL[1];
+			L_f2 *= lambda2;   // Convert carrier phase to meters
+
+			// Current ambiguity index
+			int amb_idx = BDS_idx / 4;
+
+			// Fill Jacobian matrix H with partial derivatives
+			for (int i = 0; i < 4; i++)
+			{
+				// Position partial derivatives
+				H(BDS_idx + i, 0) = (rover_pos.x - Raw.RovEpk.SatPVT[Raw.SdObs.SdSatObs[j].Rov_idx].SatPos.x) / rou_R0_j
+					- (rover_pos.x - Raw.RovEpk.SatPVT[RefIdx_Rov_BDS].SatPos.x) / rou_R0_i;
+
+				H(BDS_idx + i, 1) = (rover_pos.y - Raw.RovEpk.SatPVT[Raw.SdObs.SdSatObs[j].Rov_idx].SatPos.y) / rou_R0_j
+					- (rover_pos.y - Raw.RovEpk.SatPVT[RefIdx_Rov_BDS].SatPos.y) / rou_R0_i;
+
+				H(BDS_idx + i, 2) = (rover_pos.z - Raw.RovEpk.SatPVT[Raw.SdObs.SdSatObs[j].Rov_idx].SatPos.z) / rou_R0_j
+					- (rover_pos.z - Raw.RovEpk.SatPVT[RefIdx_Rov_BDS].SatPos.z) / rou_R0_i;
+			}
+
+			// Ambiguity partial derivatives
+			H(BDS_idx + 2, 3 + 2 * amb_idx) = lambda1;      // L1 ambiguity
+			H(BDS_idx + 3, 3 + 2 * amb_idx + 1) = lambda2;  // L2 ambiguity
+
+			// Fill measurement vector Z
+			Z(BDS_idx, 0) = P_f1;
+			Z(BDS_idx + 1, 0) = P_f2;
+			Z(BDS_idx + 2, 0) = L_f1;
+			Z(BDS_idx + 3, 0) = L_f2;
+
+			// Fill predicted measurement vector Z_pred
+			Z_pred(BDS_idx, 0) = rou_BR_ij;
+			Z_pred(BDS_idx + 1, 0) = rou_BR_ij;
+			Z_pred(BDS_idx + 2, 0) = rou_BR_ij + lambda1 * X_k_k_1(3 + 2 * amb_idx, 0);
+			Z_pred(BDS_idx + 3, 0) = rou_BR_ij + lambda2 * X_k_k_1(3 + 2 * amb_idx + 1, 0);
+
+			// Move to next BDS observation index
+			BDS_idx += 4;
+		}
+	}
+
+	// Construct R matrix (measurement noise covariance)
+	// GPS part
+	if (Raw.DDObs.DDSatNum[0] > 0)
+	{
+		Eigen::MatrixXd R_GPS = Eigen::MatrixXd::Zero(4 * Raw.DDObs.DDSatNum[0], 4 * Raw.DDObs.DDSatNum[0]);
+
+		for (int i = 0; i < 4 * Raw.DDObs.DDSatNum[0]; i++) // rows
+		{
+			for (int j = i % 4; j < 4 * Raw.DDObs.DDSatNum[0]; j += 4)  // columns
+			{
+				if (i == j)
+				{
+					if (i % 4 < 2) // Pseudorange observations
+					{
+						R_GPS(i, j) = R_GPS_ii_P;
+					}
+					else // Carrier phase observations
+					{
+						R_GPS(i, j) = R_GPS_ii_L;
+					}
+				}
+				else
+				{
+					if (i % 4 < 2) // Pseudorange observations
+					{
+						R_GPS(i, j) = R_GPS_ij_P;
+					}
+					else // Carrier phase observations
+					{
+						R_GPS(i, j) = R_GPS_ij_L;
+					}
+				}
+			}
+		}
+
+		// Add GPS part to R matrix
+		R.topLeftCorner(4 * Raw.DDObs.DDSatNum[0], 4 * Raw.DDObs.DDSatNum[0]) = R_GPS;
+	}
+
+	// BDS part
+	if (Raw.DDObs.DDSatNum[1] > 0)
+	{
+		Eigen::MatrixXd R_BDS = Eigen::MatrixXd::Zero(4 * Raw.DDObs.DDSatNum[1], 4 * Raw.DDObs.DDSatNum[1]);
+
+		for (int i = 0; i < 4 * Raw.DDObs.DDSatNum[1]; i++) // rows
+		{
+			for (int j = i % 4; j < 4 * Raw.DDObs.DDSatNum[1]; j += 4)  // columns
+			{
+				if (i == j)
+				{
+					if (i % 4 < 2) // Pseudorange observations
+					{
+						R_BDS(i, j) = R_BDS_ii_P;
+					}
+					else // Carrier phase observations
+					{
+						R_BDS(i, j) = R_BDS_ii_L;
+					}
+				}
+				else
+				{
+					if (i % 4 < 2) // Pseudorange observations
+					{
+						R_BDS(i, j) = R_BDS_ij_P;
+					}
+					else // Carrier phase observations
+					{
+						R_BDS(i, j) = R_BDS_ij_L;
+					}
+				}
+			}
+		}
+
+		// Add BDS part to R matrix
+		R.bottomRightCorner(4 * Raw.DDObs.DDSatNum[1], 4 * Raw.DDObs.DDSatNum[1]) = R_BDS;
+	}
+
+	// Perform Kalman filter measurement update
+
+	// Calculate innovation covariance
+	//Eigen::MatrixXd R = R_inv.inverse();
+	Eigen::MatrixXd S = H * P_k_k_1 * H.transpose() + R;
+
+	// Calculate Kalman gain
+	Eigen::MatrixXd K = P_k_k_1 * H.transpose() * S.inverse();
+
+	// Calculate innovation/residual vector
+	V = Z - Z_pred;
+
+	// Update state estimate
+	X_k_k = X_k_k_1 + K * V;
+
+	// Update state covariance using Joseph form for numerical stability
+	Eigen::MatrixXd I = Eigen::MatrixXd::Identity(3 + 2 * Raw.DDObs.Sats, 3 + 2 * Raw.DDObs.Sats);
+	P_k_k = (I - K * H) * P_k_k_1 * (I - K * H).transpose() + K * R * K.transpose();
+
+
+	// Debugging: Print all matrices
+	//cout << "R_inv: \n" << R_inv << endl;
+	//cout << "R: \n" << R << endl;
+	//cout << "V: \n" << V << endl;
+	//cout << "H: \n" << H << endl;
+	//cout << "X_k_k: \n" << X_k_k << endl;
+	//cout << "P_k_k: \n" << P_k_k << endl;
+	//cout << "Kalman Gain: \n" << K << endl;
+	//cout << "Innovation: \n" << V << endl;
+	//cout << "K*V: \n" << K * V << endl;
+
+
+
+	return 1;   // Successful update
+}
+
+
+
+
+void RemoveUnusedAmbiguities(Amb_Map& amb_map)
+{
+	for (auto it = amb_map.begin(); it != amb_map.end(); ) 
+	{
+		if (!it->second.isUsed) {
+			it = amb_map.erase(it);  // Remove unused ambiguity and update iterator  
+		}
+		else {
+			++it;  // Move to the next element  
+		}
+	}
+
+
+	for (auto it = amb_map.begin(); it != amb_map.end(); ++it)
+	{
+		it->second.isUsed = false;  // Reset isUsed flag for all remaining ambiguities
+	}
+	
+
+}
+
+
+
+void UpdateAmbiguityInfo(const RTK_RAW& Raw, RTK_EKF& EKF, const Eigen::MatrixXd& X_k_k) {
+	int GPS_count = 0;
+	int BDS_count = Raw.DDObs.DDSatNum[0];
+
+	EKF.Last_DDObs.bFixed = Raw.DDObs.bFixed;
+
+	for (int j = 0; j < Raw.SdObs.SatNum; j++) {
+		// Skip reference satellites
+		if (Raw.DDObs.ref_idx[0] == j || Raw.DDObs.ref_idx[1] == j) {
+			continue;
+		}
+
+		// Skip invalid observations
+		if (Raw.SdObs.SdSatObs[j].Valid_status != 2) {
+			continue;
+		}
+
+		if (Raw.SdObs.SdSatObs[j].System == GPS) {
+			int prn = Raw.SdObs.SdSatObs[j].Prn;
+
+			if (Raw.DDObs.bFixed)
+			{
+				EKF.GPS_Amb[prn].value[0] = Raw.DDObs.FixedAmb[2 * GPS_count];       // Update ambiguity value -- Fixed
+				EKF.GPS_Amb[prn].value[1] = Raw.DDObs.FixedAmb[2 * GPS_count + 1];   // Update ambiguity value -- Fixed
+			}
+			else
+			{
+				EKF.GPS_Amb[prn].value[0] = X_k_k(3 + 2 * GPS_count, 0);       // Update ambiguity value -- Fixed
+				EKF.GPS_Amb[prn].value[1] = X_k_k(3 + 2 * GPS_count + 1, 0);   // Update ambiguity value -- Fixed
+			}
+
+			
+
+			EKF.GPS_Amb[prn].isUsed = true;  // Mark ambiguity as used
+			EKF.GPS_Amb[prn].index = GPS_count; // Update ambiguity index
+
+			GPS_count++;
+		}
+		else {
+			int prn = Raw.SdObs.SdSatObs[j].Prn;
+
+			if (Raw.DDObs.bFixed)
+			{
+				EKF.BDS_Amb[prn].value[0] = Raw.DDObs.FixedAmb[2 * BDS_count];       // Update ambiguity value
+				EKF.BDS_Amb[prn].value[1] = Raw.DDObs.FixedAmb[2 * BDS_count + 1];   // Update ambiguity value
+			}
+			else
+			{
+				EKF.BDS_Amb[prn].value[0] = X_k_k(3 + 2 * BDS_count, 0);       // Update ambiguity value
+				EKF.BDS_Amb[prn].value[1] = X_k_k(3 + 2 * BDS_count + 1, 0);   // Update ambiguity value
+			}
+			
+
+			EKF.BDS_Amb[prn].isUsed = true;  // Mark ambiguity as used
+			EKF.BDS_Amb[prn].index = BDS_count; // Update ambiguity index
+
+			BDS_count++;
+		}
+	}
+
+	// Remove unused ambiguities
+	RemoveUnusedAmbiguities(EKF.GPS_Amb);
+	RemoveUnusedAmbiguities(EKF.BDS_Amb);
+}
+
+
+
+int RTK_KF()
+{
+
+	// Create Data Objects
+	RTK_RAW Raw = RTK_RAW();
+	RTK_EKF EKF = RTK_EKF();
+
+	// Create Input Handle
+	//InputHandle base_src(SOURCE_FILE_1);
+	//InputHandle rover_src(SOURCE_FILE_2);
+
+	// For Temporary Storage of Solution
+	XYZ_Coord Bas_pos(0, 0, 0);
+	XYZ_Coord Rov_pos(0, 0, 0);
+
+	InputHandle base_src("47.114.134.129", 7190);
+	InputHandle rover_src("8.148.22.229", 4002);
+
+
+	int all_count = 0;
+	int fixed_count = 0;
+
+
+	// Loop to Fetch Data
+	while (true)
+	{
+		// Synchronous Status
+		int syn_status = GetSynObs(rover_src, base_src, Raw);
+
+
+		// For Differnt Status
+		if (syn_status == -1)
+		{
+			// Data Source Already Readed
+			break;
+		}
+
+		if (syn_status == 0)
+		{
+			// Base_Obs much more Later than Rover
+			continue;
+		}
+
+
+		/* -------- Syn_states == 1 ---> Start RTK Observation Process -------- */
+
+		Check_Raw_Obs(Raw.BasEpk, Raw.RovEpk);
+
+		if (!SPP(Raw.BasEpk, Raw.GpsEph, Raw.BdsEph, Bas_pos))
+		{
+			cout << "Not Enough Observation For BaseStation!" << endl;
+			continue;
+		}
+
+		if (!SPP(Raw.RovEpk, Raw.GpsEph, Raw.BdsEph, Rov_pos))
+		{
+			cout << "Not Enough Observation For Rover!" << endl;
+			continue;
+		}
+
+		Construct_SD_Obs(Raw.BasEpk, Raw.RovEpk, Raw.SdObs);
+		Check_SD_Obs(Raw.SdObs);
+
+		if (!Seletct_Ref_Sat(Raw.BasEpk, Raw.RovEpk, Raw.SdObs, Raw.DDObs))
+		{
+			cout << "No Reference Satellite Selected!" << endl;
+			continue;
+		}
+
+
+
+		/* -------- RTK Raw Data Process Finish and Start EKF Update -------- */
+		
+		// Initialize EKF When Get the First Fixed Solution
+		if (EKF.isInit == false)
+		{
+			// For Ambiguity Resolution
+			Eigen::VectorXd FloatAmb = Eigen::VectorXd::Zero(2 * Raw.DDObs.Sats);
+			Eigen::MatrixXd Qxx = Eigen::MatrixXd::Zero(3 + 2 * Raw.DDObs.Sats, 3 + 2 * Raw.DDObs.Sats);
+
+
+			if (!RTK_Float(Raw, FloatAmb, Qxx))
+			{
+				cout << "No Enough Observation for RTK_Float Solution!" << endl;
+				continue;
+			}
+
+			if (Calc_XYZ_dist(Raw.RovEpk.my_result.Pos, Rov_pos) > 1e3)
+			{
+				cout << "RTK_Float Failed!" << endl;
+				continue;
+			}
+
+			cout << "Float Solution of BaseLine: " << Raw.SdObs.Time.SecOfWeek << "  " << Raw.DDObs.dPos.x << "  " << Raw.DDObs.dPos.y << "  " << Raw.DDObs.dPos.z << endl;
+
+			if (!RTK_FIX(Raw, FloatAmb, Qxx))
+			{
+				cout << "Failed to Fix Ambiguity!" << endl;
+				continue;
+			}
+
+			cout<<"The First Fixed Epoch: Initialize of the EKF"<<endl;
+			cout << "Fixed Solution of BaseLine: " << Raw.SdObs.Time.SecOfWeek << "  " << Raw.DDObs.dPos.x << "  " << Raw.DDObs.dPos.y << "  " << Raw.DDObs.dPos.z << endl;
+			
+			// Initialize EKF, If Get the Fixed Solution
+			RTK_EKF_INIT(Raw, EKF);
+			continue;
+		}
+
+
+		/* -------------- Regular EKF Process -------------- */
+		all_count++;
+		
+		
+		/* ------------ Time Estimate ------------- */
+		Eigen::MatrixXd X_k_k_1 = Eigen::MatrixXd::Zero(3 + 2 * Raw.DDObs.Sats, 1);
+		Eigen::MatrixXd P_k_k_1 = Eigen::MatrixXd::Zero(3 + 2 * Raw.DDObs.Sats, 3 + 2 * Raw.DDObs.Sats);
+
+		if (!TimeEstimate(Raw, EKF, X_k_k_1, P_k_k_1))
+		{
+			cout << "Failed to Update Time Estimate!" << endl;
+			EKF.isInit = false;
+			continue;
+		}
+
+		// cout << "X_k_k_1: \n" << X_k_k_1.transpose() << endl;
+		// cout << "P_k_k_1: \n" << P_k_k_1 << endl;
+
+
+		/* ------------ Measurement Update ------------- */
+
+		// NOTICE Non-Liner EKF Process , especially the Z
+		Eigen::MatrixXd X_k_k = Eigen::MatrixXd::Zero(3 + 2 * Raw.DDObs.Sats, 1);
+		Eigen::MatrixXd P_k_k = Eigen::MatrixXd::Zero(3 + 2 * Raw.DDObs.Sats, 3 + 2 * Raw.DDObs.Sats);
+
+		if (!MeasurementUpdate(Raw, X_k_k_1, P_k_k_1, X_k_k, P_k_k))
+		{
+			cout << "Failed to Update Measurement!" << endl;
+			EKF.isInit = false;
+			continue;
+		}
+
+		// cout << "X_k_k: \n" << X_k_k.transpose() << endl;
+		// cout << "P_k_k: \n" << P_k_k << endl;
+		
+
+		// Update BaseLine Info
+		Raw.RovEpk.my_result.Pos = XYZ_Coord(X_k_k(0, 0), X_k_k(1, 0), X_k_k(2, 0));
+
+		Raw.DDObs.dPos.x = Raw.RovEpk.my_result.Pos.x - Raw.BasEpk.rcv_result.Pos.x;
+		Raw.DDObs.dPos.y = Raw.RovEpk.my_result.Pos.y - Raw.BasEpk.rcv_result.Pos.y;
+		Raw.DDObs.dPos.z = Raw.RovEpk.my_result.Pos.z - Raw.BasEpk.rcv_result.Pos.z;
+		
+
+
+		if (Calc_XYZ_dist(Raw.RovEpk.my_result.Pos, Rov_pos) > 1e3)
+		{
+			cout << "Measurement Update Failed!" << endl;
+			Raw.RovEpk.my_result.Pos = Rov_pos;
+			EKF.isInit = false;
+			continue;
+		}
+
+		/* ------------ EKF State Update ------------- */
+		EKF.Time = Raw.RovEpk.Time;
+		EKF.Last_DDObs = Raw.DDObs;
+		EKF.Pos = XYZ_Coord(X_k_k(0, 0), X_k_k(1, 0), X_k_k(2, 0));
+		EKF.P.resize(3 + 2 * Raw.DDObs.Sats, 3 + 2 * Raw.DDObs.Sats);
+		EKF.P = P_k_k;
+
+
+
+		/* --------- Try to Have a Fix Solution --------- */
+		Eigen::VectorXd FloatAmb(X_k_k.block(3, 0, 2 * Raw.DDObs.Sats, 1));
+
+
+	
+		//cout << "X_k_k: \n" << X_k_k << endl;
+		//cout << "FloatAmb: \n" << FloatAmb << endl;
+		//cout << "P_k_k: \n" << P_k_k << endl;
+		//
+		//
+		//cout << "Float Solution of BaseLine: " << Raw.SdObs.Time.SecOfWeek << "  " << Raw.DDObs.dPos.x << "  " << Raw.DDObs.dPos.y << "  " << Raw.DDObs.dPos.z << endl;
+
+
+		if (!RTK_FIX(Raw, FloatAmb, P_k_k))
+		{
+			//cout << "Failed to Fix Ambiguity!" << endl;
+			cout << "Float time: " << Raw.SdObs.Time.SecOfWeek << " " << Raw.DDObs.DDSatNum[0] << " " << Raw.DDObs.DDSatNum[1] << endl;
+			UpdateAmbiguityInfo(Raw, EKF, X_k_k);
+
+			//cout << "X_k_k: \n" << X_k_k << endl;
+		    //cout << "FloatAmb: \n" << FloatAmb << endl;
+		    //cout << "P_k_k: \n" << P_k_k << endl;
+
+			continue;
+		}
+
+		fixed_count++;
+		cout << "Ratio: " << Raw.DDObs.Ratio << endl;
+		cout << "Fixed Solution of BaseLine: " << Raw.SdObs.Time.SecOfWeek << "  " << Raw.DDObs.dPos.x << "  " << Raw.DDObs.dPos.y << "  " << Raw.DDObs.dPos.z << "  " << Raw.DDObs.ref_prn[0] << "  " << Raw.DDObs.ref_prn[1] << endl;
+
+		double fixed_rate = (double)fixed_count / all_count;
+		cout << "EKF_Solution Count: " << all_count << "  " << "Fixed Rate: " << fixed_rate << endl;
+		
+		UpdateAmbiguityInfo(Raw, EKF, X_k_k);
+		
+	
+	}
+
+
+	return 1;
+
+}
+
+
 
 
 
 int main()
 {
-	RTK_LS();
-
+	//RTK_LS();
+	RTK_KF();
 
 
 	return 0;

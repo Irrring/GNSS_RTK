@@ -529,7 +529,7 @@ struct DD_OBS
 
 
 
-/*  RTK定位的数据定义  */
+/*  All the Data Require in RTK Positioning  */
 struct RTK_RAW {
     OEM7_MSG     Message;
     EPOCH_OBS    BasEpk;
@@ -540,27 +540,54 @@ struct RTK_RAW {
 };
 
 
+/*  Ambiguity Information in EKF  */
+struct Amb_Info
+{
+	double value[2];   //  The Value of Ambiguity ---> Double Frequency
+	int    index;      //  The Index of Ambiguity  -1 --> float  else --> fixed
+	bool   isUsed;     //  The Ambiguity is used or not in the new epoch
 
+	Amb_Info()
+	{
+        isUsed = false;
+		value[0] = value[1] = 0.0;
+		index = -1;    //  Count the Satellite Sit But Not Ambiguity(have to *2)
+	}
+};
+
+
+// Map to Index the ambiguity information in EKF
+typedef std::map<int, Amb_Info> Amb_Map;
+
+
+/*  RTK Positioning in EKF */
 struct RTK_EKF
 {
-    GPS_TIME Time;
-    double X[3 + MAX_CHANNEL_NUM * 2], P[(3 + MAX_CHANNEL_NUM * 2) * (3 + MAX_CHANNEL_NUM * 2)];
-    int Index[MAX_CHANNEL_NUM], nSats, nPos[MAX_CHANNEL_NUM];
-    int FixAmb[MAX_CHANNEL_NUM];          // 时间更新后上个历元已经固定并传递的模糊度， 1=已固定，-1=未固定或有周跳
-    DD_OBS DDObs, CurDDObs;               // 上一个历元和当前历元的双差观测值信息
-    SD_EPOCH_OBS SDObs;                   // 上一个历元的单差观测值
-    double X0[3 + MAX_CHANNEL_NUM * 2], P0[(3 + MAX_CHANNEL_NUM * 2) * (3 + MAX_CHANNEL_NUM * 2)];  // 状态备份
-    bool IsInit;                          // 滤波是否初始化
+	GPS_TIME Time;
+    XYZ_Coord Pos;      // Status--Position
+	XYZ_Coord Vel;      // Status--Velocity
 
-    RTK_EKF() {
-        IsInit = false;
-        nSats = 0;
-        for (int i = 0; i < MAX_CHANNEL_NUM; i++) nPos[i] = Index[i] = FixAmb[i] = -1;
-        for (int i = 0; i < 3 + MAX_CHANNEL_NUM * 2; i++) {
-            X[i] = X0[i] = 0.0;
-            for (int j = 0; j < 3 + MAX_CHANNEL_NUM * 2; j++) P[i * (3 + MAX_CHANNEL_NUM * 2) + j] = P0[i * (3 + MAX_CHANNEL_NUM * 2) + j] = 0.0;
-        }
-    }
+    Amb_Map GPS_Amb;    // key   --> PRN
+	Amb_Map BDS_Amb;    // value --> Ambiguity Information(value[2],index)
+
+    DD_OBS Last_DDObs;
+
+	Eigen::MatrixXd P;  // Covariance Matrix of Status -- meter
+
+	int  state;         // 1 --> Static   0 --> Kinematic
+	bool isInit;        // EKF is Initialized or Not
+
+
+	RTK_EKF()
+	{
+		isInit = false;
+        state = 0;
+		Time = GPS_TIME();
+		Pos = XYZ_Coord();
+		Vel = XYZ_Coord();
+        P = Eigen::MatrixXd::Zero(3 + 2 * MAX_CHANNEL_NUM, 3 + 2 * MAX_CHANNEL_NUM);
+	}
+
 };
 
 
