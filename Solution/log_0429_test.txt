@@ -1,0 +1,87 @@
+POSITIONING TYPE : EXTENT KALMAN FILTER RELATIVE POSITONING
+
+
+
+
+----------------------------------------------------
+Rover Time: 2364  194800
+Base Time:  2364  194799
+Here is the Initializtion of EKF Positioning
+Fixed Solution of BaseLine: -472.655  672.314  -1353.17
+Fixed Solution of Rover   : -2267808.3243  5009321.4693  3221021.8057
+
+----------------------------------------------------
+Rover Time: 2364  194807.0000
+Base Time:  2364  194804.0000
+WARNING: Failed to Fix the Ambiguity! Ratio = 1.3258
+Float Solution of BaseLine: -472.3834  672.1903  -1353.2210
+Rover RTK Float Position  : -2267808.0528  5009321.3458  3221021.7526
+The Satellite Information : Obs->33   DDObs->20  GPS->6  BDS->14
+
+----------------------------------------------------
+Rover Time: 2364  194808.0000
+Base Time:  2364  194805.0000
+WARNING: Failed to Fix the Ambiguity! Ratio = 1.2060
+Float Solution of BaseLine: -472.4112  672.1584  -1352.9978
+Rover RTK Float Position  : -2267808.0806  5009321.3139  3221021.9758
+The Satellite Information : Obs->32   DDObs->22  GPS->7  BDS->15
+
+----------------------------------------------------
+Rover Time: 2364  194809.0000
+Base Time:  2364  194806.0000
+WARNING: Failed to Fix the Ambiguity! Ratio = 1.1712
+Float Solution of BaseLine: -472.4166  672.1496  -1352.9409
+Rover RTK Float Position  : -2267808.0859  5009321.3051  3221022.0327
+The Satellite Information : Obs->32   DDObs->22  GPS->7  BDS->15
+
+----------------------------------------------------
+Rover Time: 2364  194817.0000
+Base Time:  2364  194814.0000
+WARNING: Failed to Fix the Ambiguity! Ratio = 1.3224
+Float Solution of BaseLine: -472.4278  672.1779  -1352.9952
+Rover RTK Float Position  : -2267808.0971  5009321.3334  3221021.9784
+The Satellite Information : Obs->33   DDObs->22  GPS->6  BDS->16
+
+----------------------------------------------------
+Rover Time: 2364  194820.0000
+Base Time:  2364  194817.0000
+WARNING: Failed to Fix the Ambiguity! Ratio = 1.1606
+Float Solution of BaseLine: -472.4384  672.1848  -1352.9529
+Rover RTK Float Position  : -2267808.1078  5009321.3403  3221022.0207
+The Satellite Information : Obs->32   DDObs->23  GPS->7  BDS->16
+
+
+
+
+----------------------------------------------------
+Rover Time: 2364  194849.0000
+Base Time:  2364  194851.0000
+WARNING: Failed to Fix the Ambiguity! Ratio = 2.1191
+Float Solution of BaseLine: -472.4689  672.2046  -1353.0024
+Rover RTK Float Position  : -2267808.1383  5009321.3601  3221021.9711
+The Satellite Information : Obs->32   DDObs->19  GPS->4  BDS->15
+
+----------------------------------------------------
+Rover Time: 2364  194850.0000
+Base Time:  2364  194852.0000
+WARNING: Failed to Fix the Ambiguity! Ratio = 1.6903
+Float Solution of BaseLine: -472.5044  672.2312  -1352.9539
+Rover RTK Float Position  : -2267808.1737  5009321.3867  3221022.0197
+The Satellite Information : Obs->32   DDObs->23  GPS->7  BDS->16
+
+----------------------------------------------------
+Rover Time: 2364  194851.0000
+Base Time:  2364  194853.0000
+WARNING: Failed to Fix the Ambiguity! Ratio = 1.6157
+Float Solution of BaseLine: -472.5329  672.2563  -1352.9257
+Rover RTK Float Position  : -2267808.2022  5009321.4118  3221022.0479
+The Satellite Information : Obs->32   DDObs->23  GPS->7  BDS->16
+
+----------------------------------------------------
+Rover Time: 2364  194854.0000
+Base Time:  2364  194854.0000
+Fixed Solution of BaseLine: -472.6651  672.3305  -1353.1689
+Fixed Solution of Rover   : -2267808.3345  5009321.4860  3221021.8047
+The Satellite Information : Obs->32   DDObs->23  GPS->7  BDS->16
+Solution Count: 9  Fix Ratio: 11.1111%
+
