@@ -21,12 +21,15 @@
     <ClInclude Include="my_rtk.hpp">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="RTKVisualServer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Decode_OEM7.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="rtkpos.cpp">
+    <ClCompile Include="RTK_Pos.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="SPP_pnt.cpp">
@@ -41,7 +44,16 @@
     <ClCompile Include="lambda.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="lambda_rtklib.cpp">
+    <ClCompile Include="RTK_Diff.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Conifg_Load.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="RTK_EKF.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="RTK_Main.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

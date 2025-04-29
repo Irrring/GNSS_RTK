@@ -31,6 +31,7 @@ const int    LEAP_SECOND = 37;           // Leap second todate
 const double GPS_EPH_MAX = 7200.0;
 const double BDS_EPH_MAX = 3600.0;
 
+
 // GNSS System Annotation
 const enum GNSS_Sys { UNKS = 0, GPS, BDS, GLONASS, GALILEO, QZSS }; 
 const enum CODE_TYPE 
@@ -60,7 +61,9 @@ const enum Trop_Model { NO = 0, hopfield, saastamoinen };
 /* -------------------CONFIGERATION-----------------*/
 const short FREQ_NUM = 2;
 const size_t MSG_BUFF_SIZE = 32768;
-const double Elev_Mask = 15.0 * PI / 180.0;
+
+const double delta_pseudo = 0.3;   // Measurement Noise of Pseudorange
+const double delta_phase = 0.01;   // Measurement Noise of Carrier Phase
 
 
 /* -------------------Ellipsoid Definition--------------- */
@@ -592,33 +595,6 @@ struct RTK_EKF
 
 
 
-
-
-struct ROVERCFGINFO   // 配置信息
-{
-    short  IsFileData, RTKProcMode;      // 1=FILE, 0=COM, 1=EKF, 2=LSQ
-    int    RovPort, RovBaud;             // COM端口设置
-    char   BasNetIP[20], RovNetIP[20];   // ip address
-    short  BasNetPort, RovNetPort;       // port
-    double CodeNoise, CPNoise;           // 伪距噪声
-    double ElevThreshold;                // 高度角阈值
-    double RatioThres;                   // Ratio检验阈值
-
-    char  BasObsDatFile[256], RovObsDatFile[256];    //  观测数据的文件名
-    char  ResFile[256];            //  结果数据文件名
-
-
-    ROVERCFGINFO()
-    {
-        IsFileData = RTKProcMode = 1;
-        RovPort = RovBaud = BasNetPort = RovNetPort = 0;
-        CodeNoise = CPNoise = ElevThreshold = 0.0;
-        RatioThres = 3.0;
-    }
-};
-
-
-
 /* --------------- Date Sourece Handler -----------------*/
 
 // 输入类型枚举（核心设计）
@@ -667,6 +643,35 @@ private:
 
 
 
+/* --------------- Configurations -----------------*/
+struct config_ 
+{
+    /* ------ About Data Source and Save --------- */
+
+	short IsFileData;        // 0: Socket  1: File
+	int BasPort, RovPort;    // Base and Rover Port
+
+	string BasNetIP, RovNetIP;   // IP of Base and Rover Station
+	string Base_File, RovFile;   // File Path of Base and Rover Data Source
+
+	string LogFile, OutputFile;  // File Path of Output and Log Files
+
+    string Visual_IP;
+    int Visual_Port;
+    bool Enable_Visual;    // If Open RTKPLOT Realtime Visual
+
+
+	/* ------ About RTK Process Config --------- */
+    short RoverMode;       // 0: Kinematic  1: Static
+    short RTKProcMode;     // 0: Least Square  1: EKF
+	short Trop_Model;      // 0: No Correction  1: Hopfield  2: Saastamoinen
+	short Ban_GEO;         // 0: No Ban GEO  1: Ban GEO
+
+	double Ratio_Thres;       
+    double Elevation_Mask;
+};
+
+
 
 
 
@@ -684,7 +689,7 @@ int decode_NovOem7_Buff(unsigned char*& buff, size_t size,size_t& Len, OEM7_MSG&
 
 
 
-/* ----------------Receiver Positioning System----------------*/
+/* ----------------SPP Algorithm ----------------*/
 
 int  get_eph_data(const int prn, const GNSS_Sys sys, const GPS_TIME& t, const GNSS_EPHREC& gps_eph, const GNSS_EPHREC& bds_eph, SAT_MIDRES& Mid, GNSS_EPHREC_DATA& eph);
 void Calc_ClkOft(const GPS_TIME& t, GNSS_EPHREC_DATA& eph, SAT_MIDRES& Mid);
@@ -697,10 +702,10 @@ double Saastamoinen(BLH_Coord pos, const double Az, const double El, double humi
 
 
 
-int Sat_PVT(const int prn, const GNSS_Sys sys, const GPS_TIME& t, GNSS_EPHREC_DATA& eph, SAT_MIDRES& Mid);
+int Sat_PVT(const int prn, const GNSS_Sys sys, const GPS_TIME& t, GNSS_EPHREC_DATA& eph, SAT_MIDRES& Mid, short Ban_GEO);
 
 
-bool SPP(EPOCH_OBS& obs, GNSS_EPHREC& gps_eph, GNSS_EPHREC& bds_eph, XYZ_Coord& pos);
+bool SPP(EPOCH_OBS& obs, GNSS_EPHREC& gps_eph, GNSS_EPHREC& bds_eph, XYZ_Coord& pos, config_ config);
 bool SPV(EPOCH_OBS& obs, XYZ_Coord& pos);
 
 
@@ -719,17 +724,69 @@ void reduction(int n, Eigen::MatrixXd& L, Eigen::VectorXd& D, Eigen::MatrixXd& Z
 int search(int n, int m, const Eigen::MatrixXd& L, const Eigen::VectorXd& D, const Eigen::VectorXd& zs, Eigen::MatrixXd& zn, Eigen::VectorXd& s);
 /* lambda/mlambda integer least-square estimation */
 int lambda(int n, int m, const Eigen::VectorXd& a, const Eigen::MatrixXd& Q, Eigen::MatrixXd& F, Eigen::VectorXd& s);
-/* --------------------End of Lambda Algorithm Function Signatures------------------- */
+/* --------------------End of Lambda Algorithm Function Signatures------------- */
 
 
 
+// 读取配置文件
+bool LoadConfig(const string& filePath, config_& config);
+
+/* --------------------RTK Algorithm Function Signatures------------------- */
+// 获取同步观测数据
+int GetSynObs(InputHandle& rover_src, InputHandle& base_src, RTK_RAW& raw);
+
+// 检查原始观测数据是否有周跳
+void Check_Raw_Obs(EPOCH_OBS& base_obs, EPOCH_OBS& rover_obs);
+
+// 构造单差观测值
+void Construct_SD_Obs(const EPOCH_OBS& base_obs, const EPOCH_OBS& rover_obs, SD_EPOCH_OBS& SD_obs);
+
+// 验证单差观测值并计算组合值
+void Check_SD_Obs(SD_EPOCH_OBS& sd_obs);
+
+// 选择双差观测的参考卫星
+bool Seletct_Ref_Sat(const EPOCH_OBS& base_obs, const EPOCH_OBS& rover_obs, SD_EPOCH_OBS& SD_obs, DD_OBS& DD_obs);
+
+// 初始化扩展卡尔曼滤波器的状态向量和协方差矩阵
+void RTK_EKF_INIT(RTK_RAW& raw, RTK_EKF& kf);
+
+// 检测参考卫星是否发生变化
+void check_RefChange(RTK_RAW& raw, RTK_EKF& kf, int* d_ref);
+
+// 处理EKF中的模糊度状态
+void ProcessAmbiguityState(RTK_RAW& Raw, RTK_EKF& EKF, int* d_ref,
+    Eigen::MatrixXd& X, Eigen::MatrixXd& Phi_Amb,
+    Eigen::MatrixXd& Q);
+
+// 执行扩展卡尔曼滤波器的时间更新步骤
+int TimeEstimate(RTK_RAW& Raw, RTK_EKF& EKF,
+    Eigen::MatrixXd& X_k_k_1, Eigen::MatrixXd& P_k_k_1);
+
+// 执行扩展卡尔曼滤波器的测量更新步骤
+int MeasurementUpdate(RTK_RAW& Raw, const Eigen::MatrixXd& X_k_k_1,
+    const Eigen::MatrixXd& P_k_k_1, Eigen::MatrixXd& X_k_k, Eigen::MatrixXd& P_k_k);
+
+// 清理不再使用的卫星模糊度
+void RemoveUnusedAmbiguities(Amb_Map& amb_map);
+
+// 更新EKF中的模糊度信息
+void UpdateAmbiguityInfo(const RTK_RAW& Raw, RTK_EKF& EKF, const Eigen::MatrixXd& X_k_k);
 
 
+// 计算RTK浮点解，使用最小二乘法估计位置和浮点模糊度
+bool RTK_Float(RTK_RAW& Raw, Eigen::VectorXd& FloatAmb, Eigen::MatrixXd& Qxx);
 
+// 计算RTK固定解，使用LAMBDA方法将浮点模糊度固定为整数
+int RTK_FIX(RTK_RAW& Raw, Eigen::VectorXd& FloatAmb, Eigen::MatrixXd& Qxx, double ratio_thres);
 
+// 将RTK定位结果转换为标准格式的输出字符串
+string Form_Pos_String(RTK_RAW& raw, int type);
 
+// 实现基于最小二乘的实时差分定位处理
+int RTK_LS(config_& config);
 
-
+// 实现基于卡尔曼滤波的实时差分定位处理
+int RTK_KF(config_& config);
 
 
 

@@ -132,13 +132,17 @@
   <ItemGroup>
     <ClInclude Include="json.hpp" />
     <ClInclude Include="my_rtk.hpp" />
+    <ClInclude Include="RTKVisualServer.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Conifg_Load.cpp" />
     <ClCompile Include="Decode_OEM7.cpp" />
     <ClCompile Include="InputHandle.cpp" />
     <ClCompile Include="lambda.cpp" />
-    <ClCompile Include="lambda_rtklib.cpp" />
-    <ClCompile Include="rtkpos.cpp" />
+    <ClCompile Include="RTK_Pos.cpp" />
+    <ClCompile Include="RTK_Diff.cpp" />
+    <ClCompile Include="RTK_EKF.cpp" />
+    <ClCompile Include="RTK_Main.cpp" />
     <ClCompile Include="SPP_pnt.cpp" />
     <ClCompile Include="Time_Coord_Sys.cpp" />
   </ItemGroup>

@@ -82,7 +82,7 @@ void Calc_ClkOft(const GPS_TIME& t, GNSS_EPHREC_DATA& eph, SAT_MIDRES& Mid)
 
 
 /* calculate single satellite pvt and then save in SAT_MIDRES */
-int Sat_PVT(const int prn, const GNSS_Sys sys, const GPS_TIME& t, GNSS_EPHREC_DATA& eph, SAT_MIDRES& Mid)
+int Sat_PVT(const int prn, const GNSS_Sys sys, const GPS_TIME& t, GNSS_EPHREC_DATA& eph, SAT_MIDRES& Mid, short Ban_GEO)
 {
 	// Set some Constants
 	double mu=0.0;			// earth's gravitational constant
@@ -161,6 +161,12 @@ int Sat_PVT(const int prn, const GNSS_Sys sys, const GPS_TIME& t, GNSS_EPHREC_DA
 	/* -------------Mind the difference of BDS GEO satellate!----------- */
 	if (sys == BDS && eph.i0<30.0*PI/180.0) 
 	{
+		if (Ban_GEO)
+		{
+			Mid.Valid = false;
+			return 1;
+		}
+
 		OMEGAk = eph.OMEGA0 + eph.OMEGADot * tk - omega_e * eph.TOE.SecOfWeek;
 		sinO = sin(OMEGAk);
 		cosO = cos(OMEGAk);
@@ -495,7 +501,7 @@ void Detect_Outlier(EPOCH_OBS& obs)
 
 
 /* Compute Statellite PVT at Transmission Time */
-void Sat_PVT_At_Trans(EPOCH_OBS& obs, GNSS_EPHREC& gps_eph, GNSS_EPHREC& bds_eph)
+void Sat_PVT_At_Trans(EPOCH_OBS& obs, GNSS_EPHREC& gps_eph, GNSS_EPHREC& bds_eph, short Ban_GEO)
 {
 	// receiver clock face time
 	GPS_TIME t0 = obs.Time;
@@ -542,7 +548,7 @@ void Sat_PVT_At_Trans(EPOCH_OBS& obs, GNSS_EPHREC& gps_eph, GNSS_EPHREC& bds_eph
 		}
 
 		// compute sattlelite PVT at trans time
-		Sat_PVT(obs.SatObs[i].Prn, obs.SatObs[i].System, trans, eph, obs.SatPVT[i]);
+		Sat_PVT(obs.SatObs[i].Prn, obs.SatObs[i].System, trans, eph, obs.SatPVT[i], Ban_GEO);
 	}
 
 }
@@ -551,7 +557,7 @@ void Sat_PVT_At_Trans(EPOCH_OBS& obs, GNSS_EPHREC& gps_eph, GNSS_EPHREC& bds_eph
 
 
 // Called when decode an observation message
-bool SPP(EPOCH_OBS& obs, GNSS_EPHREC& gps_eph, GNSS_EPHREC& bds_eph,XYZ_Coord& pos)
+bool SPP(EPOCH_OBS& obs, GNSS_EPHREC& gps_eph, GNSS_EPHREC& bds_eph,XYZ_Coord& pos, config_ config)
 {
 	// Initialize Parameters
 	Eigen::MatrixXd X(5, 1);
@@ -576,7 +582,7 @@ bool SPP(EPOCH_OBS& obs, GNSS_EPHREC& gps_eph, GNSS_EPHREC& bds_eph,XYZ_Coord& p
 		memset(valid_index, 0, sizeof(valid_index));
 
 		// compute sattlelite PVT at trans time
-		Sat_PVT_At_Trans(obs, gps_eph, bds_eph);
+		Sat_PVT_At_Trans(obs, gps_eph, bds_eph, config.Ban_GEO);
 
 		int valid_obs = 0;
 		int GPS_obs = 0;
@@ -614,7 +620,7 @@ bool SPP(EPOCH_OBS& obs, GNSS_EPHREC& gps_eph, GNSS_EPHREC& bds_eph,XYZ_Coord& p
 
 
 			// Elevation Angle Mask
-			if (iter_count > 1 && obs.SatPVT[i].Elevation <= Elev_Mask)
+			if (iter_count > 1 && obs.SatPVT[i].Elevation <= config.Elevation_Mask)
 			{
 				obs.SatPVT[i].Valid = false;
 				continue;
@@ -624,7 +630,19 @@ bool SPP(EPOCH_OBS& obs, GNSS_EPHREC& gps_eph, GNSS_EPHREC& bds_eph,XYZ_Coord& p
 			if (iter_count > 1)
 			{
 				// Troposphere Correction
-				obs.SatPVT[i].TropCorr = Hopfield(pos_blh.H, obs.SatPVT[i].Elevation);
+				if (config.Trop_Model == 1)
+				{
+					obs.SatPVT[i].TropCorr = Hopfield(pos_blh.H, obs.SatPVT[i].Elevation);
+				}
+				else if (config.Trop_Model == 2)
+				{
+					obs.SatPVT[i].TropCorr = Saastamoinen(pos_blh, obs.SatPVT[i].Azimuth, obs.SatPVT[i].Elevation, 0.5);
+				}
+				else
+				{
+					obs.SatPVT[i].TropCorr = 0.0;
+				}
+				
 			}
 
 			
