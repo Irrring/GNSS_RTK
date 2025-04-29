@@ -599,10 +599,10 @@ int shift_msg_buff(unsigned char*& buff, size_t& len, size_t& size)
     if (buff != buffer_start && len > 0) {
         memmove(buffer_start, buff, len);
     }
-    else
-    {
-        cout<<"heyheyhey"<<endl;
-    }
+    //else
+    //{
+    //    cout<<"heyheyhey"<<endl;
+    //}
 
     // 更新缓冲区指针
     buff = buffer_start;
